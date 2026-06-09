@@ -1,6 +1,10 @@
 import { createClient } from "@/lib/supabase/client"
 import { getDeviceId } from "@/lib/device-id"
-import type { MeetingAnalysis, ActionItem, Participant } from "@/types/analysis"
+import type {
+  MeetingAnalysis,
+  ActionItem,
+  Participant,
+} from "@/types/analysis"
 
 export type HistoryEntry = MeetingAnalysis & {
   id: string
@@ -21,13 +25,17 @@ interface MeetingRow {
   user_id: string | null
 }
 
-function toRow(analysis: MeetingAnalysis, deviceId: string, userId?: string) {
+function toRow(
+  analysis: MeetingAnalysis,
+  deviceId: string,
+  userId?: string
+) {
   return {
     device_id: deviceId,
     user_id: userId ?? null,
     title: analysis.title,
     summary: analysis.summary,
-    processing_time: analysis.processingTime,
+    processing_time: Math.round(analysis.processingTime),
     action_items: analysis.actionItems,
     decisions: analysis.decisions,
     participants: analysis.participants,
@@ -56,49 +64,85 @@ export async function saveAnalysis(
   const supabase = createClient()
   const deviceId = getDeviceId()
 
-  const { error } = await supabase
-    .from("meetings")
-    .insert(toRow(analysis, deviceId, userId))
+  const payload = toRow(analysis, deviceId, userId)
 
-  if (error) console.error("Save error:", error)
+  console.log("Saving payload:", payload)
+
+  const { data, error } = await supabase
+    .from("meetings")
+    .insert(payload)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Save error:", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    })
+
+    return
+  }
+
+  console.log("Saved:", data)
 }
 
-export async function getHistory(userId?: string): Promise<HistoryEntry[]> {
+export async function getHistory(
+  userId?: string
+): Promise<HistoryEntry[]> {
   const supabase = createClient()
   const deviceId = getDeviceId()
 
-  const query = userId
-    ? supabase.from("meetings").select("*").eq("user_id", userId)
-    : supabase.from("meetings").select("*").eq("device_id", deviceId)
+  console.log("Fetching history...")
+  console.log("User ID:", userId)
+  console.log("Device ID:", deviceId)
+
+  let query = supabase
+    .from("meetings")
+    .select("*")
+
+  if (userId) {
+    query = query.or(
+      `user_id.eq.${userId},device_id.eq.${deviceId}`
+    )
+  } else {
+    query = query.eq("device_id", deviceId)
+  }
 
   const { data, error } = await query
     .order("created_at", { ascending: false })
     .limit(20)
 
   if (error) {
-    console.error("Fetch error:", error)
+    console.error("Fetch error:", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    })
+
     return []
   }
 
-  return (data ?? []).map((row) => fromRow(row as MeetingRow))
+  console.log("Fetched rows:", data)
+
+  return (data ?? []).map((row) =>
+    fromRow(row as MeetingRow)
+  )
 }
 
-export async function deleteAnalysis(id: string): Promise<void> {
-  const supabase = createClient()
-  const { error } = await supabase.from("meetings").delete().eq("id", id)
-  if (error) console.error("Delete error:", error)
-}
-
-export async function claimDeviceMeetings(
-  deviceId: string,
-  userId: string
+export async function deleteAnalysis(
+  id: string
 ): Promise<void> {
   const supabase = createClient()
+
   const { error } = await supabase
     .from("meetings")
-    .update({ user_id: userId })
-    .eq("device_id", deviceId)
-    .is("user_id", null)
+    .delete()
+    .eq("id", id)
 
-  if (error) console.error("Claim error:", error)
+  if (error) {
+    console.error("Delete error:", error)
+  }
 }
