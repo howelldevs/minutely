@@ -18,6 +18,8 @@ import type {
   ActionItem,
 } from "@/types/analysis"
 import { AI_BASE_URL, AI_PRIMARY_MODEL, getAIApiKey, getAIHeaders } from "@/lib/ai-config"
+import type { MemoryBlock } from "@/app/api/memory/route"
+import type { MemoryBlock } from "@/app/api/memory/route"
 
 const AGENT_VERSION = "1.0.0"
 
@@ -147,10 +149,19 @@ priority: "High" | "Medium" | "Low"
 storyPoints: 1 | 2 | 3 | 5 | 8
 status: always "ready"
 dependencies: action item ids this task depends on, or []
-Extract ALL action items mentioned, even implicit ones.`
+Extract ALL action items mentioned, even implicit ones.
 
-async function runAnalysisAgent(transcript: string): Promise<AnalysisAgentOutput> {
-  const raw = await callLLM(ANALYSIS_PROMPT, `Analyze this transcript:\n\n${transcript}`)
+If prior meeting context is provided, use it to:
+- Identify if this is a recurring blocker or issue
+- Note if tasks were previously assigned to the same person
+- Surface continuity with past decisions`
+
+async function runAnalysisAgent(transcript: string, memory?: MemoryBlock): Promise<AnalysisAgentOutput> {
+  const memoryContext = memory && memory.meetingCount > 0
+    ? `\n\nPRIOR MEETING CONTEXT (${memory.meetingCount} previous meetings):\n${memory.condensedSummary}\nKnown participants: ${memory.participantHistory.join(", ")}\nOpen tasks from prior meetings: ${memory.openTasks.slice(0, 5).join("; ") || "none"}`
+    : ""
+
+  const raw = await callLLM(ANALYSIS_PROMPT, `Analyze this transcript:${memoryContext}\n\n${transcript}`)
   const parsed = extractJSON(raw) as AnalysisAgentOutput
   if (!parsed.title || !Array.isArray(parsed.actionItems)) {
     throw new Error("Analysis agent returned incomplete data")
@@ -391,10 +402,10 @@ function mergeResults(
 
 // ─── Public orchestrator ──────────────────────────────────────────────────────
 
-export async function orchestrate(transcript: string): Promise<MeetingIntelligence> {
+export async function orchestrate(transcript: string, memory?: MemoryBlock): Promise<MeetingIntelligence> {
   const globalStart = Date.now()
 
-  const analysisResult = await runAgent("analysis", () => runAnalysisAgent(transcript))
+  const analysisResult = await runAgent("analysis", () => runAnalysisAgent(transcript, memory))
 
   const actionItems  = analysisResult.data?.actionItems  ?? []
   const participants = analysisResult.data?.participants ?? []

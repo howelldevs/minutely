@@ -49,7 +49,7 @@ export default async function ResultsPage({ params }: Props) {
         <div className="absolute left-1/2 top-0 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-primary/10 blur-[120px]" />
       </div>
       <Navbar />
-      <div className="pt-24">
+      <div className="mx-auto max-w-[1600px] px-4 pb-24 pt-24 sm:px-6 lg:px-8">
         <ResultsDashboard analysis={analysis} meetingId={id} />
       </div>
     </main>

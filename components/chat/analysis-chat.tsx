@@ -118,7 +118,7 @@ export default function AnalysisChat({ analysis, onPatch, meetingId }: Props) {
   }
 
   return (
-    <div className="flex flex-col rounded-3xl border bg-card/70 backdrop-blur overflow-hidden" style={{ height: "480px" }}>
+    <div className="flex flex-col rounded-3xl border bg-card/70 backdrop-blur overflow-hidden mt-33" style={{ height: "550px" }}>
 
       {/* Header */}
       <div className="flex items-center gap-2.5 border-b px-4 py-3 shrink-0">
