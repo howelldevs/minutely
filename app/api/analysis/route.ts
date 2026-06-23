@@ -13,7 +13,7 @@ Required shape:
   "summary": "2-3 sentence summary",
   "processingTime": 0,
   "actionItems": [
-    { "id": "ai-1", "task": "task", "assignee": "Full Name", "due": "Friday", "priority": "High" }
+    { "id": "task-1", "task": "task", "assignee": "Full Name", "due": "Friday", "priority": "High" }
   ],
   "decisions": ["decision"],
   "participants": [{ "name": "Full Name", "role": "role" }],

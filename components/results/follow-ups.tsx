@@ -5,9 +5,12 @@
  *
  * Slack + Calendar only follow-up system.
  * Email support removed completely.
+ *
+ * NOTE: "Recipient" here is editable (e.g. for calendar invite emails)
+ * even though the message itself is still dispatched via Slack/Calendar.
  */
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   MessageCircle,
   Clock3,
@@ -73,15 +76,30 @@ function ChannelBadge({ channel }: { channel: string }) {
   )
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
 function ReviewModal({
   followUp,
   onConfirm,
   onCancel,
 }: {
   followUp: FollowUp
-  onConfirm: () => void
+  onConfirm: (recipientEmail: string) => void
   onCancel: () => void
 }) {
+  const [recipientEmail, setRecipientEmail] = useState(followUp.recipient ?? "")
+  const [touched, setTouched] = useState(false)
+
+  // Re-sync if a different follow-up is opened for review
+  useEffect(() => {
+    setRecipientEmail(followUp.recipient ?? "")
+    setTouched(false)
+  }, [followUp.id, followUp.recipient])
+
+  const emailValid = isValidEmail(recipientEmail)
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
       <div className="w-full max-w-2xl overflow-hidden rounded-[2rem] border border-border/60 bg-card shadow-2xl">
@@ -115,10 +133,35 @@ function ReviewModal({
 
           <div className="grid gap-5">
             <div>
-              <p className="mb-1 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                Recipient
-              </p>
-              <p className="text-sm font-medium">{followUp.recipient}</p>
+              <label
+                htmlFor="recipient-email"
+                className="mb-1 block text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
+              >
+                Recipient Email
+              </label>
+              <input
+                id="recipient-email"
+                type="email"
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+                onBlur={() => setTouched(true)}
+                placeholder="name@example.com"
+                className={`w-full rounded-xl border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary/50 ${
+                  touched && !emailValid && recipientEmail.length > 0
+                    ? "border-red-500/40"
+                    : "border-border/60"
+                }`}
+              />
+              {touched && recipientEmail.length > 0 && !emailValid && (
+                <p className="mt-1 text-xs text-red-400">
+                  Enter a valid email address
+                </p>
+              )}
+              {followUp.urgency === "High" && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Used as the attendee email for the calendar invite.
+                </p>
+              )}
             </div>
 
             {followUp.subject && (
@@ -183,8 +226,12 @@ function ReviewModal({
             Cancel
           </button>
           <button
-            onClick={onConfirm}
-            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+            onClick={() => {
+              setTouched(true)
+              if (emailValid) onConfirm(recipientEmail.trim())
+            }}
+            disabled={!emailValid}
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <SendHorizonal className="h-4 w-4" />
             Confirm & Send
@@ -206,6 +253,12 @@ export default function FollowUpsPanel({
       )
   )
 
+  // Tracks the (possibly user-edited) recipient email per follow-up id,
+  // so the card display and the next send both reflect the latest value.
+  const [recipients, setRecipients] = useState<Record<string, string>>(
+    () => Object.fromEntries(followUps.map((f) => [f.id, f.recipient]))
+  )
+
   const [reviewing, setReviewing] = useState<FollowUp | null>(null)
 
   const setState = (id: string, update: Partial<FollowUpState>) =>
@@ -216,7 +269,7 @@ export default function FollowUpsPanel({
 
   const handleSendClick = (fu: FollowUp) => {
     setState(fu.id, { status: "reviewing" })
-    setReviewing(fu)
+    setReviewing({ ...fu, recipient: recipients[fu.id] ?? fu.recipient })
   }
 
   const handleCancelReview = () => {
@@ -226,10 +279,11 @@ export default function FollowUpsPanel({
     setReviewing(null)
   }
 
-  const handleConfirmSend = async () => {
+  const handleConfirmSend = async (recipientEmail: string) => {
     if (!reviewing) return
 
-    const fu = reviewing
+    const fu = { ...reviewing, recipient: recipientEmail }
+    setRecipients((prev) => ({ ...prev, [fu.id]: recipientEmail }))
     setReviewing(null)
     setState(fu.id, { status: "sending" })
 
@@ -286,6 +340,7 @@ export default function FollowUpsPanel({
         <div className="space-y-5">
           {followUps.map((message) => {
             const s = states[message.id] ?? { status: "idle" }
+            const recipientValue = recipients[message.id] ?? message.recipient
 
             const isSent = s.status === "sent"
             const isFailed = s.status === "failed"
@@ -394,7 +449,7 @@ export default function FollowUpsPanel({
                       <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                         Recipient
                       </p>
-                      <p className="mt-1 text-sm font-medium">{message.recipient}</p>
+                      <p className="mt-1 text-sm font-medium">{recipientValue}</p>
                     </div>
 
                     {isSent ? (
@@ -422,7 +477,9 @@ export default function FollowUpsPanel({
                       </div>
                     ) : (
                       <button
-                        onClick={() => handleSendClick(message)}
+                        onClick={() =>
+                          handleSendClick({ ...message, recipient: recipientValue })
+                        }
                         className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
                       >
                         <Eye className="h-4 w-4" />

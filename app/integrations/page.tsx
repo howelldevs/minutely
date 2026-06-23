@@ -11,9 +11,10 @@
  */
 
 import { Suspense, useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import {
-  CalendarDays, FileText, MessageSquare, Mail,
+import { useSearchParams } from "next/navigation"
+import { FaGoogle, FaN, FaSlack } from "react-icons/fa6";
+
+import { FileText, MessageSquare, Mail,
   CheckCircle2, XCircle, Loader2, ExternalLink, Link2Off,
   ArrowLeftCircle,
 } from "lucide-react"
@@ -29,13 +30,46 @@ interface IntegrationStatus {
 
 function StatusBadge({ connected }: { connected: boolean }) {
   return connected ? (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 border border-green-500/20 px-2.5 py-1 text-xs font-medium text-green-400">
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-green-500/10 border border-green-500/20 px-2.5 py-1 text-xs font-medium text-green-400">
       <CheckCircle2 className="h-3 w-3" /> Connected
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-muted border px-2.5 py-1 text-xs font-medium text-muted-foreground">
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted border px-2.5 py-1 text-xs font-medium text-muted-foreground">
       <XCircle className="h-3 w-3" /> Not connected
     </span>
+  )
+}
+
+/**
+ * Shared header row for each integration card: icon + title + description
+ * on the left, status badge on the right. Pulled out once so the responsive
+ * fix (wrap on narrow screens instead of squeezing) only needs to live in
+ * one place.
+ */
+function IntegrationHeader({
+  icon,
+  iconBg,
+  title,
+  description,
+  connected,
+}: {
+  icon: React.ReactNode
+  iconBg: string
+  title: string
+  description: string
+  connected: boolean
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={`rounded-2xl p-2.5 shrink-0 ${iconBg}`}>{icon}</div>
+        <div className="min-w-0">
+          <h2 className="font-semibold">{title}</h2>
+          <p className="text-sm text-muted-foreground break-words">{description}</p>
+        </div>
+      </div>
+      <StatusBadge connected={connected} />
+    </div>
   )
 }
 
@@ -43,7 +77,6 @@ function StatusBadge({ connected }: { connected: boolean }) {
 // Must be wrapped in <Suspense> at the page level for Next.js static export.
 
 function IntegrationsContent() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus]               = useState<IntegrationStatus | null>(null)
   const [loading, setLoading]             = useState(true)
@@ -101,53 +134,54 @@ function IntegrationsContent() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-12 space-y-6">
-      <div className="my-20">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-6">
+      {/*
+        my-20 (80px top+bottom, unconditional) pushed real content below the
+        fold on mobile. Scaled down on small screens, full size from sm: up.
+      */}
+      <div className="my-15 sm:my-20">
         <Navbar />
       </div>
 
       <div>
-        <button
-          type="button"
-          onClick={() => router.back()}
+        {/*
+          router.back() silently does nothing if there's no history entry
+          (e.g. user opened this page directly via bookmark/shared link).
+          A real href always works.
+        */}
+        <Link
+          href="/results"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeftCircle className="h-5 w-5" /> Back to Results
-        </button>
-        <h1 className="text-2xl font-bold">Integrations</h1>
+        </Link>
+        <h1 className="text-2xl font-bold mt-3">Integrations</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Connect your tools so Minutely can send follow-ups, book meetings, and sync notes automatically.
         </p>
       </div>
 
       {connected && (
-        <div className="rounded-2xl bg-green-500/10 border border-green-500/20 px-4 py-3 text-sm text-green-400">
+        <div className="rounded-2xl bg-green-500/10 border border-green-500/20 px-4 py-3 text-sm text-green-400 break-words">
           ✓ {connected === "google" ? "Google Calendar" : connected} connected successfully.
         </div>
       )}
 
       {error && (
-        <div className="rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+        <div className="rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400 break-words">
           Connection failed: {error.replace(/_/g, " ")}. Please try again.
         </div>
       )}
 
       {/* ── Google Calendar ── */}
-      <div className="rounded-3xl border bg-card p-6 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-blue-500/10 p-2.5">
-              <CalendarDays className="h-5 w-5 text-blue-400" />
-            </div>
-            <div>
-              <h2 className="font-semibold">Google Calendar</h2>
-              <p className="text-sm text-muted-foreground">
-                Auto-book follow-up meetings and sprint kickoffs
-              </p>
-            </div>
-          </div>
-          <StatusBadge connected={status?.google ?? false} />
-        </div>
+      <div className="rounded-3xl border bg-card p-4 sm:p-6 space-y-4">
+        <IntegrationHeader
+          icon={<FaGoogle className="h-5 w-5 text-blue-400" />}
+          iconBg="bg-blue-500/10"
+          title="Google Calendar"
+          description="Auto-book follow-up meetings and sprint kickoffs"
+          connected={status?.google ?? false}
+        />
 
         {status?.google ? (
           <a
@@ -165,8 +199,9 @@ function IntegrationsContent() {
           </a>
         )}
 
-        <p className="text-xs text-muted-foreground">
-          Requires <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> in your environment.{" "}
+        <p className="text-xs text-muted-foreground break-words">
+          Requires <code className="break-all">GOOGLE_CLIENT_ID</code> and{" "}
+          <code className="break-all">GOOGLE_CLIENT_SECRET</code> in your environment.{" "}
           <a
             href="https://console.cloud.google.com/apis/credentials"
             target="_blank"
@@ -179,21 +214,14 @@ function IntegrationsContent() {
       </div>
 
       {/* ── Notion ── */}
-      <div className="rounded-3xl border bg-card p-6 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-gray-500/10 p-2.5">
-              <FileText className="h-5 w-5 text-gray-400" />
-            </div>
-            <div>
-              <h2 className="font-semibold">Notion</h2>
-              <p className="text-sm text-muted-foreground">
-                Save meeting summaries and action plans as Notion pages
-              </p>
-            </div>
-          </div>
-          <StatusBadge connected={status?.notion ?? false} />
-        </div>
+      <div className="rounded-3xl border bg-card p-4 sm:p-6 space-y-4">
+        <IntegrationHeader
+          icon={<FaN className="h-5 w-5 text-gray-400" />}
+          iconBg="bg-gray-500/10"
+          title="Notion"
+          description="Save meeting summaries and action plans as Notion pages"
+          connected={status?.notion ?? false}
+        />
 
         {status?.notion ? (
           <div className="space-y-2">
@@ -231,7 +259,7 @@ function IntegrationsContent() {
                 className="w-full rounded-2xl border bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
-            {notionError && <p className="text-xs text-red-400">{notionError}</p>}
+            {notionError && <p className="text-xs text-red-400 break-words">{notionError}</p>}
             {notionSuccess && <p className="text-xs text-green-400">✓ Notion connected!</p>}
             <button
               onClick={handleNotionSave}
@@ -244,7 +272,7 @@ function IntegrationsContent() {
           </div>
         )}
 
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground break-words">
           Create an integration at{" "}
           <a
             href="https://www.notion.so/my-integrations"
@@ -259,23 +287,17 @@ function IntegrationsContent() {
       </div>
 
       {/* ── Slack ── */}
-      <div className="rounded-3xl border bg-card p-6 space-y-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-yellow-500/10 p-2.5">
-              <MessageSquare className="h-5 w-5 text-yellow-400" />
-            </div>
-            <div>
-              <h2 className="font-semibold">Slack</h2>
-              <p className="text-sm text-muted-foreground">
-                Post blocker alerts to your team channels
-              </p>
-            </div>
-          </div>
-          <StatusBadge connected={status?.slack ?? false} />
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Configured via <code>SLACK_WEBHOOK_URL</code> in your environment (app-level, not per-user).{" "}
+      <div className="rounded-3xl border bg-card p-4 sm:p-6 space-y-3">
+        <IntegrationHeader
+          icon={<FaSlack className="h-5 w-5 text-yellow-400" />}
+          iconBg="bg-yellow-500/10"
+          title="Slack"
+          description="Post blocker alerts to your team channels"
+          connected={status?.slack ?? false}
+        />
+        <p className="text-xs text-muted-foreground break-words">
+          Configured via <code className="break-all">SLACK_WEBHOOK_URL</code> in your environment
+          (app-level, not per-user).{" "}
           <a
             href="https://api.slack.com/messaging/webhooks"
             target="_blank"
@@ -288,24 +310,18 @@ function IntegrationsContent() {
       </div>
 
       {/* ── Email (Resend) ── */}
-      <div className="rounded-3xl border bg-card p-6 space-y-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-purple-500/10 p-2.5">
-              <Mail className="h-5 w-5 text-purple-400" />
-            </div>
-            <div>
-              <h2 className="font-semibold">Email</h2>
-              <p className="text-sm text-muted-foreground">
-                Send follow-up emails via Resend (no per-user setup needed)
-              </p>
-            </div>
-          </div>
-          <StatusBadge connected={status?.resend ?? false} />
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Configured via <code>RESEND_API_KEY</code> and <code>EMAIL_FROM</code> in your environment.
-          Verify your sending domain at{" "}
+      <div className="rounded-3xl border bg-card p-4 sm:p-6 space-y-3">
+        <IntegrationHeader
+          icon={<Mail className="h-5 w-5 text-purple-400" />}
+          iconBg="bg-purple-500/10"
+          title="Email"
+          description="Send follow-up emails via Resend (no per-user setup needed)"
+          connected={status?.resend ?? false}
+        />
+        <p className="text-xs text-muted-foreground break-words">
+          Configured via <code className="break-all">RESEND_API_KEY</code> and{" "}
+          <code className="break-all">EMAIL_FROM</code> in your environment. Verify your sending domain
+          at{" "}
           <a
             href="https://resend.com/domains"
             target="_blank"

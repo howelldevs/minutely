@@ -6,6 +6,8 @@ import {
   RotateCcw,
   Activity,
   ArrowRight,
+  MessageCircle,
+  ArrowDown,
 } from "lucide-react"
 import type { MeetingAnalysis, MeetingIntelligence } from "@/types/analysis"
 import ActionItems from "@/components/results/action-items"
@@ -52,6 +54,12 @@ const AGENT_COUNT = 6
 export default function ResultsDashboard({ analysis: initial, meetingId }: Props) {
   const [analysis, setAnalysis] = useState<MeetingAnalysis | MeetingIntelligence>(initial)
   const [activeTab, setActiveTab] = useState<TabKey>("Summary")
+  // Single source of truth for whether the mobile floating chat dock is open.
+  // There is only ever ONE AnalysisChat instance mounted at a time — on
+  // desktop it's an inline panel rendered unconditionally; on mobile it's a
+  // fixed dock that mounts only when this is true. Previously both rendered
+  // simultaneously below `lg`, creating two independent chat histories.
+  const [mobileChatOpen, setMobileChatOpen] = useState(false)
   const intel = isIntelligence(analysis) ? analysis : null
 
   const runtimeStats = useMemo(() => {
@@ -85,30 +93,6 @@ export default function ResultsDashboard({ analysis: initial, meetingId }: Props
   const hasWorkflow   = Array.isArray(intel?.workflow)   && (isFullMode || intel!.workflow.length > 0)
   const hasFollowUps  = Array.isArray(intel?.followUps)  && (isFullMode || intel!.followUps.length > 0)
 
-  /**
-   * Runtime stats derived from real intel data — mirrors the logic in RuntimeTab's
-   * deriveEvents() so the header bar stays consistent with the tab content.
-   */
-  // const runtimeStats = useMemo(() => {
-  //   if (!intel) return { success: 1, running: 0, failed: 0, partial: 0 }
-
-  //   const agentResults = [
-  //     "success" as const,                                                          // analysis agent always succeeds
-  //     "success" as const,                                                          // blocker agent always returns something
-  //     intel.sprintPlan?.length ? "success" : intel.analysisMode === "partial" ? "partial" : "success",
-  //     intel.workflow?.length   ? "success" : intel.analysisMode === "partial" ? "partial" : "success",
-  //     intel.actionPlan?.length ? "success" : intel.analysisMode === "partial" ? "partial" : "success",
-  //     intel.followUps?.length  ? "success" : intel.analysisMode === "partial" ? "partial" : "success",
-  //   ] as const
-
-  //   return {
-  //     success: agentResults.filter((s) => s === "success").length,
-  //     running: 0,
-  //     failed: 0,
-  //     partial: agentResults.filter((s) => s === "partial").length,
-  //   }
-  // }, [intel])
-
   const tabs: Array<{ key: TabKey; label: string; visible: boolean; count?: number }> = [
     { key: "Summary",      label: "Summary",      visible: true },
     { key: "Action Items", label: "Action Items", visible: true,           count: analysis.actionItems.length },
@@ -122,8 +106,6 @@ export default function ResultsDashboard({ analysis: initial, meetingId }: Props
     { key: "Transcript",   label: "Transcript",   visible: true },
   ]
 
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-
   const visibleTabs = tabs.filter((t) => t.visible)
   const currentTab = visibleTabs.some((t) => t.key === activeTab)
     ? activeTab
@@ -134,10 +116,11 @@ export default function ResultsDashboard({ analysis: initial, meetingId }: Props
   const renderTabContent = () => {
     switch (currentTab) {
       case "Runtime":
-        // RuntimeTab requires MeetingIntelligence; fall back to a message for basic analyses
-        return intel
-          ? <RuntimeTab analysis={intel} />
-          : <EmptyState message="Runtime breakdown is only available for full analyses." />
+        return intel ? (
+          <RuntimeTab analysis={intel} />
+        ) : (
+          <EmptyState message="Runtime breakdown is only available for full analyses." />
+        )
 
       case "Summary":
         return (
@@ -176,42 +159,40 @@ export default function ResultsDashboard({ analysis: initial, meetingId }: Props
         )
 
       case "Action Plan":
-        return intel
-          ? <ActionPlanPanel actionPlan={intel.actionPlan} />
-          : <EmptyState message="Action plan not available." />
+        return intel ? <ActionPlanPanel actionPlan={intel.actionPlan} /> : <EmptyState message="Action plan not available." />
 
       case "Sprint Plan":
-        return intel
-          ? <SprintBoard sprintPlan={intel.sprintPlan} actionItems={analysis.actionItems} />
-          : <EmptyState message="Sprint plan not available." />
+        return intel ? (
+          <SprintBoard sprintPlan={intel.sprintPlan} actionItems={analysis.actionItems} />
+        ) : (
+          <EmptyState message="Sprint plan not available." />
+        )
 
       case "Blockers":
-        return intel
-          ? <BlockerPanel blockers={intel.blockers} />
-          : <EmptyState message="Blocker detection not available." />
+        return intel ? <BlockerPanel blockers={intel.blockers} /> : <EmptyState message="Blocker detection not available." />
 
       case "Workflow":
-        return intel
-          ? <WorkflowPanel workflow={intel.workflow} />
-          : <EmptyState message="Workflow not available." />
+        return intel ? <WorkflowPanel workflow={intel.workflow} /> : <EmptyState message="Workflow not available." />
 
       case "Follow-ups":
-        return intel
-          ? <FollowUpsPanel followUps={intel.followUps} meetingTitle={title} />
-          : <EmptyState message="Follow-ups not available." />
+        return intel ? (
+          <FollowUpsPanel followUps={intel.followUps} meetingTitle={title} />
+        ) : (
+          <EmptyState message="Follow-ups not available." />
+        )
 
       case "Decisions":
-        return decisions.length === 0
-          ? <EmptyState message="No decisions recorded." />
-          : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 auto-rows-max">
-              {decisions.map((d, i) => (
-                <div key={i} className="rounded-2xl bg-primary/5 border border-primary/10 px-4 py-3 text-sm leading-6">
-                  {d}
-                </div>
-              ))}
-            </div>
-          )
+        return decisions.length === 0 ? (
+          <EmptyState message="No decisions recorded." />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 auto-rows-max">
+            {decisions.map((d, i) => (
+              <div key={i} className="rounded-2xl bg-primary/5 border border-primary/10 px-4 py-3 text-sm leading-6">
+                {d}
+              </div>
+            ))}
+          </div>
+        )
 
       case "Transcript":
         return (
@@ -224,6 +205,9 @@ export default function ResultsDashboard({ analysis: initial, meetingId }: Props
         return null
     }
   }
+
+  const handlePatch = (patch: Partial<MeetingIntelligence>) =>
+    setAnalysis((a) => ({ ...a, ...patch }))
 
   return (
     <div className="w-full min-h-screen pb-8 sm:pb-16 md:pb-32">
@@ -295,86 +279,72 @@ export default function ResultsDashboard({ analysis: initial, meetingId }: Props
         </div>
 
         {/* ── Main grid ── */}
-        <div className="grid gap-6 md:gap-8 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_380px]">
+        <div className="flex flex-col gap-6">
+          {/* Tabs + Content */}
           <div className="space-y-6 min-w-0">
             {/* Tab header */}
             <div className="flex flex-col items-start gap-1">
               <p className="text-xs uppercase tracking-[0.3em] text-primary font-medium">Workspace</p>
               <span className="text-sm text-muted-foreground flex items-center gap-2">
                 choose a view
-                <ArrowRight className="w-4 h-4 hidden sm:block" />
+                <ArrowDown className="w-4 h-4 hidden sm:block" />
               </span>
             </div>
 
-            {/* Tab nav */}
-            <nav
-              className="flex gap-1.5 overflow-x-auto rounded-2xl border border-white/10 bg-muted/30 p-1.5 backdrop-blur-xl scrollbar-none"
-              role="tablist"
-            >
+            {/* Tabs */}
+            <nav className="flex gap-1.5 overflow-x-auto rounded-2xl border border-white/10 bg-muted/30 p-1.5 backdrop-blur-xl scrollbar-none">
               {visibleTabs.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  role="tab"
-                  aria-selected={currentTab === tab.key}
-                  className={`shrink-0 rounded-xl px-2.5 sm:px-3.5 py-2 text-xs font-medium transition-all whitespace-nowrap ${
+                  className={`shrink-0 rounded-xl px-3 py-2 text-xs font-medium whitespace-nowrap ${
                     currentTab === tab.key
-                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                      : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {tab.label}
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span
-                      className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
-                        currentTab === tab.key
-                          ? "bg-white/20 text-white"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {tab.count}
-                    </span>
-                  )}
                 </button>
               ))}
             </nav>
 
-            {/* Tab content panel */}
-            <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-card/70 p-4 sm:p-6 backdrop-blur-xl">
-              <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-primary/40 to-transparent" />
-              <div className="overflow-auto">
-                {renderTabContent()}
-              </div>
+            {/* Scrollable content */}
+            <section className="rounded-2xl border border-white/10 bg-card/70 p-4 sm:p-6 backdrop-blur-xl">
+              {renderTabContent()}
             </section>
           </div>
 
-          {/* Sidebar - hidden on mobile, shown on md+ */}
-          <div className="hidden lg:block">
-            <AnalysisChat
-              analysis={analysis}
-              onPatch={(patch) => setAnalysis((a) => ({ ...a, ...patch }))}
-              meetingId={meetingId}
-            />
+          {/*
+            Chat — rendered ONCE.
+            - Desktop (lg+): always-visible inline panel, sits below the tab content.
+            - Mobile (<lg): hidden via lg:hidden; toggled open as a fixed dock by
+              the floating action button below. Tailwind's `hidden`/`lg:block`
+              pair ensures only the relevant version is ever in the DOM.
+          */}
+          <div className="hidden lg:block w-full">
+            <AnalysisChat analysis={analysis} onPatch={handlePatch} meetingId={meetingId} variant="panel" />
           </div>
         </div>
 
-        {/* Mobile sidebar toggle - shown only on md- */}
-        <div className="lg:hidden mt-8">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border bg-card/50 px-4 py-3 text-sm font-medium backdrop-blur transition-all hover:bg-card"
-          >
-            <Sparkles className="h-4 w-4" />
-            {sidebarOpen ? "Hide AI Chat" : "Show AI Chat"}
-          </button>
-          {sidebarOpen && (
-            <div className="mt-4">
-              <AnalysisChat
-                analysis={analysis}
-                onPatch={(patch) => setAnalysis((a) => ({ ...a, ...patch }))}
-                meetingId={meetingId}
-              />
-            </div>
+        {/* Mobile chat: floating action button + dock (single instance, swaps in/out) */}
+        <div className="lg:hidden">
+          {mobileChatOpen ? (
+            <AnalysisChat
+              analysis={analysis}
+              onPatch={handlePatch}
+              meetingId={meetingId}
+              variant="dock"
+              onClose={() => setMobileChatOpen(false)}
+            />
+          ) : (
+            <button
+              onClick={() => setMobileChatOpen(true)}
+              aria-label="Open AI chat"
+              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+              className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-2xl active:scale-95 transition"
+            >
+              <MessageCircle className="h-6 w-6" />
+            </button>
           )}
         </div>
       </div>
@@ -386,9 +356,7 @@ export default function ResultsDashboard({ analysis: initial, meetingId }: Props
 
 function RuntimeMetric({ label, value }: { label: string; value: number }) {
   const accent =
-    label === "Failed"  ? "text-red-400" :
-    label === "Partial" ? "text-yellow-400" :
-                          "text-emerald-400"
+    label === "Failed" ? "text-red-400" : label === "Partial" ? "text-yellow-400" : "text-emerald-400"
 
   return (
     <div className="flex items-baseline gap-2">
@@ -414,9 +382,7 @@ function StatCard({
   return (
     <div
       className={`rounded-2xl border p-3 sm:p-4 ${
-        danger  ? "border-orange-500/20 bg-orange-500/5" :
-        accent  ? "border-primary/10 bg-primary/5" :
-                  "border-white/10 bg-background/70"
+        danger ? "border-orange-500/20 bg-orange-500/5" : accent ? "border-primary/10 bg-primary/5" : "border-white/10 bg-background/70"
       }`}
     >
       <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground truncate">{label}</p>

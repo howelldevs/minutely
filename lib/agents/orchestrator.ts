@@ -129,7 +129,7 @@ Required shape:
   "summary": "2-3 sentence summary of what was discussed and decided",
   "actionItems": [
     {
-      "id": "ai-1",
+      "id": "task-1",
       "task": "specific actionable task description",
       "assignee": "Full Name",
       "due": "e.g. Friday, End of week",
@@ -187,7 +187,7 @@ Required shape:
       "id": "bl-1",
       "description": "what is blocked and why",
       "severity": "Critical",
-      "affectedTasks": ["ai-1"],
+      "affectedTasks": ["task-1"],
       "owner": "Full Name",
       "suggestedResolution": "concrete step to unblock"
     }
@@ -222,7 +222,7 @@ Required shape:
       "startDate": "Week 1",
       "endDate": "Week 1, Friday",
       "capacity": 20,
-      "tasks": ["ai-1", "ai-3"],
+      "tasks": ["task-1", "task-3"],
       "goals": ["Complete auth flow", "Fix token refresh"]
     }
   ]
@@ -259,7 +259,7 @@ Required shape:
       "dependsOn": [],
       "estimatedDays": 2,
       "status": "ready",
-      "actionItemId": "ai-1"
+      "actionItemId": "task-1"
     }
   ]
 }
@@ -333,7 +333,7 @@ Required shape:
       "channel": "email",
       "subject": "subject line",
       "body": "professional message body (2-4 sentences)",
-      "tasks": ["ai-1"],
+      "tasks": ["task-1"],
       "urgency": "High"
     }
   ]

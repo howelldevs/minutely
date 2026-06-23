@@ -15,12 +15,43 @@ interface Props {
   onClose: () => void
 }
 
-const SUGGESTIONS = [
-  "What did everyone commit to?",
-  "Summarise the key decisions",
-  "Who has the most tasks?",
-  "What's due first?",
-]
+function generateSuggestions(analysis: MeetingAnalysis): string[] {
+  const suggestions: string[] = []
+  const transcript = analysis.transcript.toLowerCase()
+  const participantNames = analysis.participants?.map((p) => p.name) ?? []
+  const primaryParticipant = participantNames[0]
+
+  if (analysis.actionItems?.length) {
+    suggestions.push(`Review the ${analysis.actionItems.length} action items`)
+  }
+
+  if (participantNames.length) {
+    suggestions.push(`What are ${primaryParticipant}'s main tasks?`)
+  }
+
+  if (analysis.decisions?.length) {
+    suggestions.push(`Summarize the ${analysis.decisions.length} key decisions`)
+  }
+
+  if (/due|deadline|end of week|friday|next monday|tomorrow/.test(transcript)) {
+    suggestions.push("What's due first from this meeting?")
+  }
+
+  if (/blocker|risk|dependency|issue|problem/.test(transcript)) {
+    suggestions.push("What blockers should we resolve?")
+  }
+
+  if (/next step|follow[- ]up|action item|deliverable/.test(transcript)) {
+    suggestions.push("What needs to happen next?")
+  }
+
+  if (suggestions.length === 0) {
+    suggestions.push("What did everyone commit to?")
+    suggestions.push("What needs to happen next?")
+  }
+
+  return Array.from(new Set(suggestions)).slice(0, 4)
+}
 
 export default function FollowUpChat({ analysis, onClose }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -106,7 +137,7 @@ export default function FollowUpChat({ analysis, onClose }: Props) {
                 Ask anything about your meeting
               </p>
               <div className="flex flex-wrap justify-center gap-2">
-                {SUGGESTIONS.map((s) => (
+                {generateSuggestions(analysis).map((s) => (
                   <button
                     key={s}
                     onClick={() => send(s)}

@@ -72,6 +72,7 @@ export default function RootLayout({
           inter.variable,
           "font-sans"
         )}
+        data-scroll-behavior="smooth"
       >
         <body className="min-h-screen overflow-x-hidden bg-background text-foreground">
           <div className="pointer-events-none fixed inset-0 -z-50 overflow-hidden">
