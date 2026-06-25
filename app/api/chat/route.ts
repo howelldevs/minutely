@@ -32,7 +32,7 @@ PATCH FIELDS (only include what you are changing):
 - actionPlan: ActionPlanItem[]
 
 ActionItem shape:
-{"id":"ai-1","task":"description","assignee":"Full Name","due":"Monday","priority":"High","storyPoints":3,"status":"ready","dependencies":[]}
+{"id":"task-1","task":"description","assignee":"Full Name","due":"Monday","priority":"High","storyPoints":3,"status":"ready","dependencies":[]}
 
 priority: "High" | "Medium" | "Low"
 storyPoints: 1 | 2 | 3 | 5 | 8

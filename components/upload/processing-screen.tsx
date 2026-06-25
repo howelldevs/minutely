@@ -2,71 +2,113 @@
 
 import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
-import { BrainCircuit, CheckCircle2, Clock3, GitBranch, Network, Sparkles, Users, Zap } from "lucide-react"
+import {
+  Brain,
+  ListChecks,
+  AlertTriangle,
+  GitBranch,
+  Network,
+  Send,
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
+} from "lucide-react"
+
 import type { MeetingIntelligence } from "@/types/analysis"
 
 const steps = [
   {
-    icon: BrainCircuit,
-    title: "Reading transcript",
-    description: "Understanding context and structure",
+    icon: Brain,
+    name: "Parsing transcript",
+    desc: "Reading context, speakers, and structure",
+    phase: "serial" as const,
   },
   {
-    icon: Users,
-    title: "Identifying speakers & tasks",
-    description: "Mapping participants, roles, and commitments",
+    icon: ListChecks,
+    name: "Extracting tasks & owners",
+    desc: "Mapping commitments to participants",
+    phase: "parallel" as const,
   },
   {
-    icon: Zap,
-    title: "Detecting blockers",
-    description: "Surfacing risks and dependencies",
+    icon: AlertTriangle,
+    name: "Detecting blockers",
+    desc: "Surfacing risks and dependencies",
+    phase: "parallel" as const,
   },
   {
     icon: GitBranch,
-    title: "Planning sprints",
-    description: "Scheduling tasks by priority and capacity",
+    name: "Planning sprints",
+    desc: "Scheduling by priority and capacity",
+    phase: "parallel" as const,
   },
   {
     icon: Network,
-    title: "Building workflow",
-    description: "Generating execution DAG",
+    name: "Building workflow DAG",
+    desc: "Linking task dependencies",
+    phase: "parallel" as const,
   },
   {
-    icon: Clock3,
-    title: "Drafting follow-ups",
-    description: "Preparing per-person action messages",
+    icon: Send,
+    name: "Drafting follow-ups",
+    desc: "Per-person action messages",
+    phase: "parallel" as const,
   },
 ]
+
+// Step 0 is the serial analysis agent (~3-4s).
+// Steps 1-5 run in parallel immediately after.
+const STEP_DELAYS_MS = [0, 3200, 3600, 4000, 4400, 4800]
 
 interface Props {
   transcript: string
   onComplete: (data: MeetingIntelligence) => void
+  onRetry: () => void
 }
 
-export default function ProcessingScreen({ transcript, onComplete }: Props) {
+export default function ProcessingScreen({ transcript, onComplete, onRetry }: Props) {
   const hasFired = useRef(false)
-  const [activeStep, setActiveStep] = useState(0)
+  const [activeStep, setActiveStep] = useState(-1)
+  const [doneSteps, setDoneSteps] = useState<Set<number>>(new Set())
   const [elapsed, setElapsed] = useState(0)
+  const [apiDone, setApiDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const pendingResult = useRef<MeetingIntelligence | null>(null)
 
-  // Tick elapsed time
+  // Timer
   useEffect(() => {
-    const timer = setInterval(() => setElapsed((e) => e + 1), 1000)
-    return () => clearInterval(timer)
+    const id = setInterval(() => setElapsed((e) => e + 1), 1000)
+    return () => clearInterval(id)
   }, [])
 
-  // Advance steps visually every ~1.8s to match ~5 agent calls
+  // Step animation — advances independently of API, reflects actual pipeline shape
   useEffect(() => {
-    if (activeStep >= steps.length - 1) return
-    const t = setTimeout(() => setActiveStep((s) => s + 1), 1800)
-    return () => clearTimeout(t)
-  }, [activeStep])
+    const timers: ReturnType<typeof setTimeout>[] = []
+    STEP_DELAYS_MS.forEach((delay, i) => {
+      timers.push(
+        setTimeout(() => {
+          setActiveStep(i)
+          if (i > 0) setDoneSteps((prev) => new Set([...prev, i - 1]))
+        }, delay)
+      )
+    })
+    return () => timers.forEach(clearTimeout)
+  }, [])
 
-  // Fire API once
+  // When API finishes successfully, mark all done then hand off
+  useEffect(() => {
+    if (!apiDone || error) return
+    setDoneSteps(new Set(steps.map((_, i) => i)))
+    setActiveStep(-1)
+    const t = setTimeout(() => {
+      if (pendingResult.current) onComplete(pendingResult.current)
+    }, 600)
+    return () => clearTimeout(t)
+  }, [apiDone, error, onComplete])
+
+  // API call — fires exactly once
   useEffect(() => {
     if (hasFired.current) return
     hasFired.current = true
-
-    const start = Date.now()
 
     async function analyze() {
       try {
@@ -76,107 +118,177 @@ export default function ProcessingScreen({ transcript, onComplete }: Props) {
           body: JSON.stringify({ transcript }),
         })
 
-       if (!res.ok) {
-  let detail = null
-
-  try {
-    detail = await res.json()
-  } catch {
-    detail = await res.text().catch(() => null)
-  }
-
-  console.error("API route failed:", detail)
-
-  throw new Error(
-    detail?.error ||
-    detail?.details ||
-    "Analysis failed"
-  )
-}
+        if (!res.ok) {
+          let detail: { error?: string; details?: string } | null = null
+          try { detail = await res.json() } catch { /* ignore */ }
+          throw new Error(
+            detail?.error || detail?.details || `Server error ${res.status}`
+          )
+        }
 
         const data: MeetingIntelligence = await res.json()
-        onComplete(data)
+        pendingResult.current = data
+        setApiDone(true)
       } catch (err) {
-        console.error("Processing error:", err)
-        onComplete(getFallback(transcript, Date.now() - start))
+        console.error("[ProcessingScreen] analysis failed:", err)
+        setError(err instanceof Error ? err.message : "Analysis failed. Please try again.")
+        setApiDone(true)
       }
     }
 
     analyze()
-  }, [transcript, onComplete])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcript])
 
-  return (
-    <div className="mx-auto max-w-lg">
+  const progress = apiDone && !error
+    ? 100
+    : Math.round(((doneSteps.size + (activeStep >= 0 ? 0.5 : 0)) / steps.length) * 100)
 
-      {/* Header */}
-      <div className="mb-10 text-center">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border bg-card/80 shadow-lg backdrop-blur">
-          <Sparkles className="h-7 w-7 text-primary" />
+  const footerStatus = error
+    ? "Analysis failed"
+    : apiDone
+    ? "All agents complete"
+    : activeStep >= 0
+    ? `${steps[activeStep].name}…`
+    : "Starting…"
+
+  // ── Error state ─────────────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-8 sm:py-16 text-center">
+        <div className="mx-auto mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-destructive/20 bg-destructive/5 shrink-0">
+          <XCircle className="h-5 w-5 text-destructive" />
         </div>
-        <h2 className="text-2xl font-semibold tracking-tight">Running 5 agents</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Analysis · Blockers · Sprints · Workflow · Follow-ups
+
+        <h2 className="text-lg sm:text-xl font-medium tracking-tight">Analysis failed</h2>
+
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+          {error}
+        </p>
+
+        <p className="mt-1 text-xs text-muted-foreground/60">
+          Elapsed: {elapsed}s
+        </p>
+
+        <button
+          onClick={onRetry}
+          className="mx-auto mt-6 flex items-center gap-2 rounded-lg border border-border/60 bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Try again
+        </button>
+      </div>
+    )
+  }
+
+  // ── Processing state ─────────────────────────────────────────────────────────
+  return (
+    <div className="mx-auto max-w-xl px-4 py-6 sm:py-10 w-full">
+      {/* Header */}
+      <div className="mb-6 sm:mb-8 text-center">
+        <motion.div
+          animate={{ scale: [1, 1.04, 1] }}
+          transition={{ duration: 2.5, repeat: Infinity }}
+          className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-border/40 bg-card shadow-sm shrink-0"
+        >
+          <Brain className="h-5 w-5 text-foreground/70" />
+        </motion.div>
+
+        <h2 className="text-lg sm:text-xl font-medium tracking-tight">
+          Processing meeting intelligence
+        </h2>
+
+        <p className="mx-auto mt-2 max-w-sm text-xs sm:text-sm leading-6 text-muted-foreground">
+          6 AI agents running in parallel — extracting tasks, blockers, sprints, and follow-ups.
         </p>
       </div>
 
+      {/* Progress bar */}
+      <div className="mb-6">
+        <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+          <span>Progress</span>
+          <span className="tabular-nums">{progress}%</span>
+        </div>
+        <div className="h-[3px] overflow-hidden rounded-full bg-muted/60">
+          <motion.div
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="h-full rounded-full bg-foreground/80"
+          />
+        </div>
+      </div>
+
       {/* Steps */}
-      <div className="space-y-3">
-        {steps.map((step, index) => {
-          const isDone = index < activeStep
-          const isActive = index === activeStep
-          const isPending = index > activeStep
+      <div className="mb-6 flex flex-col gap-1">
+        {steps.map((step, i) => {
+          const isDone = doneSteps.has(i)
+          const isActive = activeStep === i && !isDone
+          const isPending = !isDone && !isActive
 
           return (
             <motion.div
-              key={step.title}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: isPending ? 0.4 : 1, x: 0 }}
-              transition={{ delay: index * 0.08, duration: 0.4 }}
-              className={`flex items-center gap-4 rounded-2xl border p-4 transition-colors duration-500 ${
+              key={step.name}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              className={`flex items-center gap-2 sm:gap-3 rounded-xl px-2 sm:px-3 py-2 sm:py-2.5 transition-colors duration-300 ${
                 isActive
-                  ? "border-primary/30 bg-primary/5"
+                  ? "bg-muted/60 ring-1 ring-border/60"
                   : isDone
-                  ? "bg-card/40"
-                  : "bg-card/20"
+                  ? "bg-muted/30"
+                  : "bg-transparent"
               }`}
             >
               {/* Icon */}
-              <div className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors duration-500 ${
-                isDone ? "bg-primary/15" : isActive ? "bg-primary/10" : "bg-muted/50"
-              }`}>
+              <div
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors duration-300 ${
+                  isDone
+                    ? "border-border/40 bg-card"
+                    : isActive
+                    ? "border-border/60 bg-card"
+                    : "border-border/20 bg-transparent"
+                }`}
+              >
                 {isDone ? (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
-                  </motion.div>
+                  <CheckCircle2 className="h-3.5 w-3.5 text-foreground/70" />
                 ) : (
-                  <step.icon className={`h-4 w-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
-                )}
-                {isActive && (
-                  <span className="absolute inset-0 animate-ping rounded-xl bg-primary/20" />
+                  <step.icon
+                    className={`h-3.5 w-3.5 ${
+                      isActive ? "text-foreground/80" : "text-muted-foreground/40"
+                    }`}
+                  />
                 )}
               </div>
 
               {/* Text */}
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${isPending ? "text-muted-foreground" : "text-foreground"}`}>
-                  {step.title}
+              <div className="min-w-0 flex-1">
+                <p
+                  className={`text-xs sm:text-sm font-medium leading-none ${
+                    isPending ? "text-muted-foreground/50" : "text-foreground"
+                  }`}
+                >
+                  {step.name}
                 </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{step.description}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground/60 hidden sm:block">{step.desc}</p>
               </div>
 
-              {/* State */}
+              {/* Badge */}
               <div className="shrink-0">
-                {isDone && <span className="text-xs text-primary">Done</span>}
+                {isDone && (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
+                    done
+                  </span>
+                )}
                 {isActive && (
-                  <div className="flex gap-0.5">
-                    <span className="h-1 w-1 animate-bounce rounded-full bg-primary" />
-                    <span className="h-1 w-1 animate-bounce rounded-full bg-primary [animation-delay:0.15s]" />
-                    <span className="h-1 w-1 animate-bounce rounded-full bg-primary [animation-delay:0.3s]" />
-                  </div>
+                  <span className="flex items-center gap-0.5">
+                    {[0, 1, 2].map((d) => (
+                      <span
+                        key={d}
+                        className="h-1 w-1 animate-bounce rounded-full bg-foreground/50"
+                        style={{ animationDelay: `${d * 0.15}s` }}
+                      />
+                    ))}
+                  </span>
                 )}
               </div>
             </motion.div>
@@ -184,30 +296,18 @@ export default function ProcessingScreen({ transcript, onComplete }: Props) {
         })}
       </div>
 
+      <p className="mb-6 text-center text-xs text-muted-foreground/60">
+        Agents 2–6 run in parallel after the initial parse
+      </p>
+
       {/* Footer */}
-      <div className="mt-8 flex items-center justify-between text-xs text-muted-foreground">
-        <span>Powered by Qwen</span>
-        <span className="tabular-nums">{elapsed}s elapsed</span>
+      <div className="flex items-center justify-between border-t border-border/30 pt-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400 shrink-0" />
+          <span className="truncate">{footerStatus}</span>
+        </div>
+        <span className="tabular-nums shrink-0 ml-2">{elapsed}s</span>
       </div>
     </div>
   )
-}
-
-function getFallback(transcript: string, elapsed: number): MeetingIntelligence {
-  return {
-    title: "Meeting Analysis",
-    summary: "Could not reach the AI service. Check your GROQ_API_KEY or network connection.",
-    processingTime: parseFloat((elapsed / 1000).toFixed(1)),
-    actionItems: [],
-    decisions: [],
-    participants: [],
-    transcript,
-    blockers: [],
-    sprintPlan: [],
-    workflow: [],
-    actionPlan: [],
-    followUps: [],
-    agentVersion: "1.0.0",
-    analysisMode: "legacy",
-  }
 }

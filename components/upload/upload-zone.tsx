@@ -120,13 +120,42 @@ export default function UploadZone({ onAnalyze }: Props) {
     setFileName(null)
   }
 
-  const readFile = (file: File) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setTranscript(e.target?.result as string)
+  const readFile = async (file: File) => {
+    const fileType = file.type || ""
+    const fileName = file.name.toLowerCase()
+
+    try {
+      let extractedText = ""
+
+      // Handle PDF files
+      if (fileType === "application/pdf" || fileName.endsWith(".pdf")) {
+  const pdfjsLib = await import("pdfjs-dist/build/pdf")
+
+  // Tell pdf.js where to load its worker from, matched to the installed version
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
+
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  const textLines: string[] = []
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const textContent = await page.getTextContent()
+    const pageText = textContent.items
+      .map((item: { str: string }) => item.str)
+      .join(" ")
+    textLines.push(pageText)
+  }
+
+  extractedText = textLines.join("\n")
+}
+
+      setTranscript(extractedText)
       setFileName(file.name)
+    } catch (error) {
+      console.error("Error reading file:", error)
+      alert("Error reading file. Please try again.")
     }
-    reader.readAsText(file)
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -166,7 +195,7 @@ export default function UploadZone({ onAnalyze }: Props) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".txt,.md,.pdf,.doc,.docx"
+            accept=".txt,.md,.pdf"
             className="hidden"
             onChange={handleFileChange}
           />
@@ -194,7 +223,7 @@ export default function UploadZone({ onAnalyze }: Props) {
               </div>
               <div>
                 <p className="text-sm font-medium">Drop a file or click to browse</p>
-                <p className="text-xs text-muted-foreground mt-0.5">.txt .md .pdf .doc</p>
+                <p className="text-xs text-muted-foreground mt-0.5">.pdf .txt .md</p>
               </div>
             </>
           )}

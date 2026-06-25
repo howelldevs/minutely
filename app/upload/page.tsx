@@ -9,8 +9,6 @@ import ResultsDashboard from "@/components/results/results-dashboard"
 import Navbar from "@/components/layout/Navbar"
 import type { MeetingIntelligence } from "@/types/analysis"
 
-// The /api/analyze route injects savedId into the JSON response.
-// It is NOT part of the domain type — we strip it before storing state.
 type AnalyzeResponse = MeetingIntelligence & { savedId?: string | null }
 
 type Step = "upload" | "processing" | "results"
@@ -30,15 +28,20 @@ export default function UploadPage() {
   const handleProcessingComplete = (raw: AnalyzeResponse) => {
     const { savedId, ...intelligence } = raw
 
-    // If the route already persisted and returned an id, navigate directly
     if (savedId) {
       router.push(`/results/${savedId}`)
       return
     }
 
-    // Anonymous or save failed — show results in-session
     setAnalysis(intelligence)
     setStep("results")
+  }
+
+  // Return to upload so user can try again
+  const handleRetry = () => {
+    setStep("upload")
+    setTranscript("")
+    setAnalysis(null)
   }
 
   return (
@@ -48,9 +51,9 @@ export default function UploadPage() {
         <div className="absolute left-1/2 top-0 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-primary/10 blur-[120px]" />
       </div>
 
-      <Navbar />
+      {step !== "processing" && <Navbar />}
 
-      <div className="container relative pt-32 pb-20">
+      <div className={`container relative pb-20 ${step === "processing" ? "pt-10" : "pt-32"}`}>
         {step === "upload" && (
           <div className="mx-auto max-w-2xl">
             <div className="mb-8 text-center">
@@ -66,12 +69,11 @@ export default function UploadPage() {
         )}
 
         {step === "processing" && (
-          <div className="mx-auto max-w-lg">
-            <ProcessingScreen
-              transcript={transcript}
-              onComplete={handleProcessingComplete}
-            />
-          </div>
+          <ProcessingScreen
+            transcript={transcript}
+            onComplete={handleProcessingComplete}
+            onRetry={handleRetry}
+          />
         )}
 
         {step === "results" && analysis && (

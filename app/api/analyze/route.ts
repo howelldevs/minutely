@@ -1,89 +1,77 @@
 /**
  * POST /api/analyze
  *
- * Agentic route — runs 6 agents via orchestrator, saves to Supabase.
- * The old /api/analysis route is untouched as a fallback.
+ * Accepts { transcript } and runs the 6-agent orchestrator.
+ * Memory context is built from the user's prior meetings and injected
+ * into Agent 1 before orchestration begins.
+ *
+ * Returns MeetingIntelligence + savedId (null for anonymous users).
  */
 
-import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
+import { NextResponse } from "next/server"
 import { orchestrate } from "@/lib/agents/orchestrator"
+import { buildMemoryContext } from "@/lib/agents/memory"
 import { saveAnalysis } from "@/lib/storage"
 
-export const maxDuration = 60
+export const maxDuration = 120
 
-export async function POST(req: NextRequest) {
-  const requestStart = Date.now()
-
-  // Auth — anonymous users still get results, just no persistence
-  let userId: string | null = null
+export async function POST(req: Request) {
   try {
-    const session = await auth()
-    userId = session.userId ?? null
-  } catch {
-    // Clerk not configured or token expired — continue anonymously
-  }
+    const { transcript } = await req.json()
 
-  // Validate input
-  let transcript: string
-  try {
-    const body = await req.json()
-    transcript = (body?.transcript ?? "").trim()
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
-  }
+    if (!transcript || typeof transcript !== "string" || transcript.trim().length < 50) {
+      return NextResponse.json(
+        { error: "Transcript is required and must be at least 50 characters." },
+        { status: 400 }
+      )
+    }
 
-  if (!transcript) {
-    return NextResponse.json({ error: "transcript is required" }, { status: 400 })
-  }
+    const { userId } = await auth()
 
-  if (transcript.length > 100_000) {
-    return NextResponse.json(
-      { error: "Transcript exceeds 100k character limit" },
-      { status: 413 }
-    )
-  }
+    // ── Build memory context for signed-in users ──────────────────────────────
+    // This gives Agent 1 awareness of recurring participants, blockers, and
+    // unresolved tasks from the last 5 meetings.
+    let memoryBlock = undefined
+    if (userId) {
+      try {
+        const memCtx = await buildMemoryContext(userId, 5)
+        if (memCtx.meetingCount > 0) {
+          // Shape the MemoryBlock the orchestrator expects
+          memoryBlock = {
+  meetingCount: memCtx.meetingCount,
+  condensedSummary: memCtx.contextBlock,
 
-  // Run orchestrator
-  let intelligence
-  try {
-    intelligence = await orchestrate(transcript)
+  participantHistory: [],
+  openTasks: [],
+
+  recurringBlockers: [],
+  recentDecisions: [],
+  lastMeetingAt: null,
+}
+        }
+      } catch (memErr) {
+        // Non-fatal — analysis continues without memory
+        console.warn("[analyze] memory build failed, continuing without:", memErr)
+      }
+    }
+
+    // ── Run orchestrator ──────────────────────────────────────────────────────
+    const intelligence = await orchestrate(transcript, memoryBlock)
+
+    // ── Persist (signed-in only) ──────────────────────────────────────────────
+    let savedId: string | null = null
+    if (userId) {
+      savedId = await saveAnalysis(intelligence, userId)
+    }
+
+    return NextResponse.json({ ...intelligence, savedId })
   } catch (err) {
-    console.error("[/api/analyze] orchestrator error:", err)
+    console.error("[analyze] error:", err)
+    const message = err instanceof Error ? err.message : "Internal server error"
     return NextResponse.json(
-      {
-        error: "Analysis failed",
-        detail: err instanceof Error ? err.message : "Unknown error",
-        requestDurationMs: Date.now() - requestStart,
-      },
+      { error: message, details: String(err) },
       { status: 500 }
     )
   }
-
-  // Persist to Supabase non-blocking — don't fail the response on DB error
-  let savedId: string | null = null
-  if (userId) {
-    try {
-      savedId = await saveAnalysis(intelligence, userId)
-    } catch (err) {
-      console.error("[/api/analyze] supabase save failed:", err)
-    }
-  }
-
-  console.log(
-    `[/api/analyze] complete — mode:${intelligence.analysisMode} items:${intelligence.actionItems.length} blockers:${intelligence.blockers.length} sprints:${intelligence.sprintPlan.length} savedId:${savedId}`
-  )
-
-  return NextResponse.json(
-    { ...intelligence, savedId: savedId ?? null },
-    {
-      status: 200,
-      headers: {
-        "Cache-Control": "no-store",
-        "X-Agent-Version": intelligence.agentVersion,
-        "X-Analysis-Mode": intelligence.analysisMode,
-        "X-Processing-Ms": String(intelligence.processingTime * 1000),
-      },
-    }
-  )
 }
