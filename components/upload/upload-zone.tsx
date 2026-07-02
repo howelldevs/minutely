@@ -128,27 +128,29 @@ export default function UploadZone({ onAnalyze }: Props) {
       let extractedText = ""
 
       // Handle PDF files
-      if (fileType === "application/pdf" || fileName.endsWith(".pdf")) {
-  const pdfjsLib = await import("pdfjs-dist/build/pdf")
+ const pdfjsLib = await import("pdfjs-dist")
 
-  // Tell pdf.js where to load its worker from, matched to the installed version
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString()
 
-  const arrayBuffer = await file.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-  const textLines: string[] = []
+const arrayBuffer = await file.arrayBuffer()
+const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+const textLines: string[] = []
 
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const textContent = await page.getTextContent()
-    const pageText = textContent.items
-      .map((item: { str: string }) => item.str)
-      .join(" ")
-    textLines.push(pageText)
-  }
+for (let i = 1; i <= pdf.numPages; i++) {
+  const page = await pdf.getPage(i)
+  const textContent = await page.getTextContent()
 
-  extractedText = textLines.join("\n")
+  const pageText = textContent.items
+    .map((item: any) => item.str)
+    .join(" ")
+
+  textLines.push(pageText)
 }
+
+extractedText = textLines.join("\n")
 
       setTranscript(extractedText)
       setFileName(file.name)

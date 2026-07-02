@@ -3,14 +3,13 @@
 /**
  * components/results/follow-ups.tsx
  *
- * Slack + Calendar only follow-up system.
- * Email support removed completely.
- *
- * NOTE: "Recipient" here is editable (e.g. for calendar invite emails)
- * even though the message itself is still dispatched via Slack/Calendar.
+ * Slack + Calendar follow-up system, with a per-action choice:
+ * send a Slack message, create a calendar reminder only, or both.
+ * Email support removed completely (recipient email field is only
+ * used to populate the calendar invite attendee, not for sending mail).
  */
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import {
   MessageCircle,
   Clock3,
@@ -37,6 +36,9 @@ type SendStatus =
   | "sending"
   | "sent"
   | "failed"
+
+// What the human approver decides to actually dispatch.
+type ActionMode = "message" | "calendar" | "both"
 
 interface FollowUpState {
   status: SendStatus
@@ -76,8 +78,56 @@ function ChannelBadge({ channel }: { channel: string }) {
   )
 }
 
+// What create_calendar_event's tool result data looks like when successful.
+interface CalendarEventData {
+  htmlLink?: string
+}
+
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
+// Small segmented control for choosing what actually gets dispatched.
+function ActionModeSelector({
+  value,
+  onChange,
+}: {
+  value: ActionMode
+  onChange: (mode: ActionMode) => void
+}) {
+  const options: { mode: ActionMode; label: string; icon: typeof MessageCircle }[] = [
+    { mode: "message", label: "Slack message", icon: MessageCircle },
+    { mode: "calendar", label: "Calendar reminder only", icon: CalendarDays },
+    { mode: "both", label: "Both", icon: SendHorizonal },
+  ]
+
+  return (
+    <div>
+      <p className="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+        What should this do?
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {options.map(({ mode, label, icon: Icon }) => {
+          const active = value === mode
+          return (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => onChange(mode)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                active
+                  ? "border-primary/40 bg-primary/15 text-primary"
+                  : "border-border/60 bg-background/60 text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function ReviewModal({
@@ -86,19 +136,28 @@ function ReviewModal({
   onCancel,
 }: {
   followUp: FollowUp
-  onConfirm: (recipientEmail: string) => void
+  onConfirm: (recipientEmail: string, actionMode: ActionMode) => void
   onCancel: () => void
 }) {
+  // No useEffect needed to "re-sync" these when a different follow-up is
+  // opened — the parent renders this component with key={followUp.id},
+  // so React remounts it fresh (and resets all this state) automatically
+  // whenever the reviewed follow-up changes.
   const [recipientEmail, setRecipientEmail] = useState(followUp.recipient ?? "")
   const [touched, setTouched] = useState(false)
+  const [actionMode, setActionMode] = useState<ActionMode>(
+    followUp.urgency === "High" ? "both" : "message"
+  )
 
-  // Re-sync if a different follow-up is opened for review
-  useEffect(() => {
-    setRecipientEmail(followUp.recipient ?? "")
-    setTouched(false)
-  }, [followUp.id, followUp.recipient])
+  const needsEmail = actionMode === "calendar" || actionMode === "both"
+  const emailValid = !needsEmail || isValidEmail(recipientEmail)
 
-  const emailValid = isValidEmail(recipientEmail)
+  const confirmLabel =
+    actionMode === "calendar"
+      ? "Confirm & Add to Calendar"
+      : actionMode === "both"
+      ? "Confirm & Send Both"
+      : "Confirm & Send"
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -132,37 +191,39 @@ function ReviewModal({
           </div>
 
           <div className="grid gap-5">
-            <div>
-              <label
-                htmlFor="recipient-email"
-                className="mb-1 block text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
-              >
-                Recipient Email
-              </label>
-              <input
-                id="recipient-email"
-                type="email"
-                value={recipientEmail}
-                onChange={(e) => setRecipientEmail(e.target.value)}
-                onBlur={() => setTouched(true)}
-                placeholder="name@example.com"
-                className={`w-full rounded-xl border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary/50 ${
-                  touched && !emailValid && recipientEmail.length > 0
-                    ? "border-red-500/40"
-                    : "border-border/60"
-                }`}
-              />
-              {touched && recipientEmail.length > 0 && !emailValid && (
-                <p className="mt-1 text-xs text-red-400">
-                  Enter a valid email address
-                </p>
-              )}
-              {followUp.urgency === "High" && (
+            <ActionModeSelector value={actionMode} onChange={setActionMode} />
+
+            {needsEmail && (
+              <div>
+                <label
+                  htmlFor="recipient-email"
+                  className="mb-1 block text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
+                >
+                  Recipient Email
+                </label>
+                <input
+                  id="recipient-email"
+                  type="email"
+                  value={recipientEmail}
+                  onChange={(e) => setRecipientEmail(e.target.value)}
+                  onBlur={() => setTouched(true)}
+                  placeholder="name@example.com"
+                  className={`w-full rounded-xl border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary/50 ${
+                    touched && !emailValid && recipientEmail.length > 0
+                      ? "border-red-500/40"
+                      : "border-border/60"
+                  }`}
+                />
+                {touched && recipientEmail.length > 0 && !emailValid && (
+                  <p className="mt-1 text-xs text-red-400">
+                    Enter a valid email address
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-muted-foreground">
                   Used as the attendee email for the calendar invite.
                 </p>
-              )}
-            </div>
+              </div>
+            )}
 
             {followUp.subject && (
               <div>
@@ -173,14 +234,16 @@ function ReviewModal({
               </div>
             )}
 
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                Slack Message
-              </p>
-              <div className="rounded-3xl border bg-muted/30 p-5 text-sm leading-7 text-muted-foreground">
-                {followUp.body}
+            {(actionMode === "message" || actionMode === "both") && (
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                  Slack Message
+                </p>
+                <div className="rounded-3xl border bg-muted/30 p-5 text-sm leading-7 text-muted-foreground">
+                  {followUp.body}
+                </div>
               </div>
-            </div>
+            )}
 
             {followUp.tasks.length > 0 && (
               <div>
@@ -206,8 +269,10 @@ function ReviewModal({
                 <div className="text-sm text-muted-foreground">
                   This action will:
                   <ul className="mt-2 space-y-1">
-                    <li>• Post a Slack notification</li>
-                    {followUp.urgency === "High" && (
+                    {(actionMode === "message" || actionMode === "both") && (
+                      <li>• Post a Slack notification</li>
+                    )}
+                    {(actionMode === "calendar" || actionMode === "both") && (
                       <li>• Schedule a calendar follow-up</li>
                     )}
                   </ul>
@@ -228,13 +293,13 @@ function ReviewModal({
           <button
             onClick={() => {
               setTouched(true)
-              if (emailValid) onConfirm(recipientEmail.trim())
+              if (emailValid) onConfirm(recipientEmail.trim(), actionMode)
             }}
             disabled={!emailValid}
             className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <SendHorizonal className="h-4 w-4" />
-            Confirm & Send
+            {confirmLabel}
           </button>
         </div>
       </div>
@@ -279,7 +344,7 @@ export default function FollowUpsPanel({
     setReviewing(null)
   }
 
-  const handleConfirmSend = async (recipientEmail: string) => {
+  const handleConfirmSend = async (recipientEmail: string, actionMode: ActionMode) => {
     if (!reviewing) return
 
     const fu = { ...reviewing, recipient: recipientEmail }
@@ -291,7 +356,7 @@ export default function FollowUpsPanel({
       const res = await fetch("/api/send-followup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ followUp: fu, meetingTitle }),
+        body: JSON.stringify({ followUp: fu, meetingTitle, action: actionMode }),
       })
 
       const data = await res.json()
@@ -316,6 +381,7 @@ export default function FollowUpsPanel({
     <>
       {reviewing && (
         <ReviewModal
+          key={reviewing.id}
           followUp={reviewing}
           onConfirm={handleConfirmSend}
           onCancel={handleCancelReview}
@@ -414,9 +480,9 @@ export default function FollowUpsPanel({
 
                             {tr.success &&
                               tr.tool === "create_calendar_event" &&
-                              typeof (tr.data as any).htmlLink === "string" && (
+                              typeof (tr.data as CalendarEventData).htmlLink === "string" && (
                                 <a
-                                  href={(tr.data as any).htmlLink}
+                                  href={(tr.data as CalendarEventData).htmlLink}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="ml-5 inline-flex items-center gap-1 text-xs text-primary hover:underline"

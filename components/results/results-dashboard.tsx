@@ -292,7 +292,7 @@ export default function ResultsDashboard({ analysis: initial, meetingId }: Props
             </div>
 
             {/* Tabs */}
-            <nav className="flex gap-1.5 overflow-x-auto rounded-2xl border border-white/10 bg-muted/30 p-1.5 backdrop-blur-xl scrollbar-none">
+            <nav className="flex gap-1.5 overflow-x-auto rounded-2xl border border-white/10 bg-muted/30 p-1.5 backdrop-blur-xl scrollbar-none w-[890px]">
               {visibleTabs.map((tab) => (
                 <button
                   key={tab.key}
