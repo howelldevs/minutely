@@ -229,9 +229,9 @@ const [selectedTask, setSelectedTask] = useState<string | null>(null)
 
                               <span
                                 className={`rounded-full px-2 py-1 text-xs ${
-                                  item.priority === "high"
+                                  item.priority === "High"
                                     ? "bg-red-500/10 text-red-500"
-                                    : item.priority === "medium"
+                                    : item.priority === "Medium"
                                     ? "bg-yellow-500/10 text-yellow-500"
                                     : "bg-green-500/10 text-green-500"
                                 }`}
