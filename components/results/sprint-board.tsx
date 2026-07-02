@@ -202,7 +202,7 @@ const [selectedTask, setSelectedTask] = useState<string | null>(null)
                       </button>
 
                       {selectedTask === item.id && (
-                      <div className="ml-20 rounded-2xl border bg-background/80 p-5 animate-in fade-in-0 slide-in-from-top-2 duration-1000">
+                      <div className=" rounded-2xl border bg-background/80 w-150 px-10 py-4 animate-in fade-in-0 slide-in-from-top-2 duration-1000 mx-auto">
                         <div className="flex  items-center gap-2 text-sm justify-between">
 
                           <div className="space-y-3 flex flex-col gap-4 items-start">
