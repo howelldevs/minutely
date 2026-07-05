@@ -1,14 +1,14 @@
-# Minutely — AI Meeting Intelligence
+markdown# Meetric — AI Meeting Intelligence
 
 > **Global AI Hackathon with Qwen Cloud — Track 4: Autopilot Agent**
 
-Minutely turns raw meeting transcripts into structured intelligence and then **acts on it** — drafting follow-ups, detecting blockers, planning sprints, and dispatching messages to email, Slack, and Notion, all with a human-in-the-loop approval checkpoint before anything is sent.
+Meetric turns raw meeting transcripts into structured intelligence and then **acts on it** — drafting follow-ups, detecting blockers, planning sprints, and dispatching messages to email, Slack, and Notion, all with a human-in-the-loop approval checkpoint before anything is sent.
 
 ---
 
 ## What it does
 
-Paste or upload a meeting transcript. Minutely runs a **6-agent pipeline on Qwen Cloud** and produces:
+Paste or upload a meeting transcript. Meetric runs a **6-agent pipeline on Qwen Cloud** and produces:
 
 | Output | Agent |
 |---|---|
@@ -41,15 +41,13 @@ After approval, the LLM runs an agentic tool-call loop using Qwen's function-cal
 For High-urgency follow-ups the agent automatically books a calendar check-in in addition to sending the message — no extra instruction needed.
 
 ### Cross-session memory (`lib/agents/memory.ts`)
-Before each analysis run, Minutely fetches the user's last 5 meetings from Supabase and compresses them into a structured context block injected into Agent 1's system prompt. The agent can surface patterns like:
+Before each analysis run, Meetric fetches the user's last 5 meetings from Supabase and compresses them into a structured context block injected into Agent 1's system prompt. The agent can surface patterns like:
 
 > "This is the third sprint in a row where the notification service has been flagged as a blocker owned by Priya."
 
 ---
 
 ## Architecture
-
-```
 ┌─────────────────────────────────────────────────────────────────┐
 │  Client                                                          │
 │  Upload zone → Results dashboard (9 tabs + AI chat)             │
@@ -67,7 +65,6 @@ Before each analysis run, Minutely fetches the user's last 5 meetings from Supab
 │  Resend (email)   Google Calendar    Slack   Notion              │
 │  Clerk (auth)                                                    │
 └─────────────────────────────────────────────────────────────────┘
-```
 
 See [`public/architecture.svg`](public/architecture.svg) for the full diagram.
 
@@ -89,7 +86,7 @@ See [`public/architecture.svg`](public/architecture.svg) for the full diagram.
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/your-org/minutely
+git clone https://github.com/howelldevs/minutely
 cd minutely
 pnpm install
 ```
@@ -145,38 +142,32 @@ This project runs on Alibaba Cloud via the Qwen Cloud API (`dashscope-intl.aliyu
 ---
 
 ## Project structure
-
-```
 lib/
-  ai-config.ts          # Qwen Cloud model config (free / paid tier swap)
-  storage.ts            # Supabase admin client, all DB operations
-  agents/
-    orchestrator.ts     # 6-agent pipeline
-    tools.ts            # MCP tool layer (email, calendar, Slack, Notion)
-    memory.ts           # Cross-session meeting memory
-
+ai-config.ts          # Qwen Cloud model config (free / paid tier swap)
+storage.ts            # Supabase admin client, all DB operations
+agents/
+orchestrator.ts     # 6-agent pipeline
+tools.ts            # MCP tool layer (email, calendar, Slack, Notion)
+memory.ts           # Cross-session meeting memory
 app/
-  api/
-    analyze/            # Agentic pipeline route
-    chat/               # AI chat + patch persistence
-    send-followup/      # HITL tool dispatch
-    memory/             # Cross-session memory endpoint
-    integrations/       # OAuth connect, callback, Notion token, status
-  results/[id]/         # Results dashboard page
-  integrations/         # Integrations settings page
-  upload/               # Transcript upload page
-
+api/
+analyze/            # Agentic pipeline route
+chat/               # AI chat + patch persistence
+send-followup/      # HITL tool dispatch
+memory/             # Cross-session memory endpoint
+integrations/       # OAuth connect, callback, Notion token, status
+results/[id]/         # Results dashboard page
+integrations/         # Integrations settings page
+upload/               # Transcript upload page
 components/
-  results/
-    results-dashboard   # 9-tab results UI
-    follow-ups          # HITL approval flow
-    analysis-chat       # Inline AI chat panel
-
+results/
+results-dashboard   # 9-tab results UI
+follow-ups          # HITL approval flow
+analysis-chat       # Inline AI chat panel
 supabase/
-  migrations/           # SQL schema files
+migrations/           # SQL schema files
 public/
-  architecture.svg      # System architecture diagram
-```
+architecture.svg      # System architecture diagram
 
 ---
 
