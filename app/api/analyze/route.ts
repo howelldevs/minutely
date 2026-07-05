@@ -1,13 +1,3 @@
-/**
- * POST /api/analyze
- *
- * Accepts { transcript } and runs the 6-agent orchestrator.
- * Memory context is built from the user's prior meetings and injected
- * into Agent 1 before orchestration begins.
- *
- * Returns MeetingIntelligence + savedId (null for anonymous users).
- */
-
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { orchestrate } from "@/lib/agents/orchestrator"
@@ -16,13 +6,25 @@ import { saveAnalysis } from "@/lib/storage"
 
 export const maxDuration = 120
 
+const MIN_TRANSCRIPT_CHARS = 50
+const MAX_TRANSCRIPT_CHARS = 10_000
+
 export async function POST(req: Request) {
   try {
     const { transcript } = await req.json()
 
-    if (!transcript || typeof transcript !== "string" || transcript.trim().length < 50) {
+    if (!transcript || typeof transcript !== "string" || transcript.trim().length < MIN_TRANSCRIPT_CHARS) {
       return NextResponse.json(
-        { error: "Transcript is required and must be at least 50 characters." },
+        { error: `Transcript is required and must be at least ${MIN_TRANSCRIPT_CHARS} characters.` },
+        { status: 400 }
+      )
+    }
+
+    if (transcript.length > MAX_TRANSCRIPT_CHARS) {
+      return NextResponse.json(
+        {
+          error: `Transcript is too long (${transcript.length.toLocaleString()} / ${MAX_TRANSCRIPT_CHARS.toLocaleString()} characters). Please trim it and try again.`,
+        },
         { status: 400 }
       )
     }
@@ -30,28 +32,22 @@ export async function POST(req: Request) {
     const { userId } = await auth()
 
     // ── Build memory context for signed-in users ──────────────────────────────
-    // This gives Agent 1 awareness of recurring participants, blockers, and
-    // unresolved tasks from the last 5 meetings.
     let memoryBlock = undefined
     if (userId) {
       try {
         const memCtx = await buildMemoryContext(userId, 5)
         if (memCtx.meetingCount > 0) {
-          // Shape the MemoryBlock the orchestrator expects
           memoryBlock = {
-  meetingCount: memCtx.meetingCount,
-  condensedSummary: memCtx.contextBlock,
-
-  participantHistory: [],
-  openTasks: [],
-
-  recurringBlockers: [],
-  recentDecisions: [],
-  lastMeetingAt: null,
-}
+            meetingCount: memCtx.meetingCount,
+            condensedSummary: memCtx.contextBlock,
+            participantHistory: [],
+            openTasks: [],
+            recurringBlockers: [],
+            recentDecisions: [],
+            lastMeetingAt: null,
+          }
         }
       } catch (memErr) {
-        // Non-fatal — analysis continues without memory
         console.warn("[analyze] memory build failed, continuing without:", memErr)
       }
     }

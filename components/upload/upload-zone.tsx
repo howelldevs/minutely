@@ -5,6 +5,8 @@ import { Upload, FileText, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
+const MAX_TRANSCRIPT_CHARS = 10_000
+
 const SAMPLE_TRANSCRIPT = `Sarah (PM): Alright, let's get started — we're 23 days out from the July 18 launch and I want to walk through every open thread. Michael, let's start with engineering. Where are we on the API?
 
 Michael (Engineering Lead): Auth endpoints are done and in staging. User creation is about 80% — there's one edge case with OAuth token expiry on mobile that Priya is still debugging. She thinks it's a 2-day fix max.
@@ -107,58 +109,79 @@ export default function UploadZone({ onAnalyze }: Props) {
   const [transcript, setTranscript] = useState("")
   const [dragging, setDragging] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
+  const [truncated, setTruncated] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const overLimit = transcript.length > MAX_TRANSCRIPT_CHARS
 
   const handleAnalyze = () => {
     const text = transcript.trim()
-    if (!text) return
+    if (!text || overLimit) return
     onAnalyze(text)
   }
 
   const handleSample = () => {
-    setTranscript(SAMPLE_TRANSCRIPT)
+    setTranscript(SAMPLE_TRANSCRIPT.slice(0, MAX_TRANSCRIPT_CHARS))
     setFileName(null)
+    setTruncated(false)
   }
 
-  const readFile = async (file: File) => {
-    const fileType = file.type || ""
-    const fileName = file.name.toLowerCase()
-
-    try {
-      let extractedText = ""
-
-      // Handle PDF files
- const pdfjsLib = await import("pdfjs-dist")
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString()
-
-const arrayBuffer = await file.arrayBuffer()
-const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-const textLines: string[] = []
-
-for (let i = 1; i <= pdf.numPages; i++) {
-  const page = await pdf.getPage(i)
-  const textContent = await page.getTextContent()
-
-  const pageText = textContent.items
-    .map((item: any) => item.str)
-    .join(" ")
-
-  textLines.push(pageText)
+  const applyTranscript = (text: string, name: string | null) => {
+  setTranscript(text)
+  setFileName(name)
 }
 
-extractedText = textLines.join("\n")
+const readFile = async (file: File) => {
+  try {
+    let extractedText = ""
 
-      setTranscript(extractedText)
-      setFileName(file.name)
-    } catch (error) {
-      console.error("Error reading file:", error)
-      alert("Error reading file. Please try again.")
+    // Handle PDF files
+    const pdfjsLib = await import("pdfjs-dist")
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.min.mjs",
+      import.meta.url
+    ).toString()
+
+    const arrayBuffer = await file.arrayBuffer()
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+    const textLines: string[] = []
+    let totalChars = 0
+    let exceeded = false
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i)
+      const textContent = await page.getTextContent()
+
+      const pageText = textContent.items
+        .map((item: { str?: string }) => item.str ?? "")
+        .join(" ")
+
+      textLines.push(pageText)
+      totalChars += pageText.length
+
+      // Stop parsing early once we know it's too big — no point
+      // reading the rest of the pages if we're rejecting the file anyway
+      if (totalChars > MAX_TRANSCRIPT_CHARS) {
+        exceeded = true
+        break
+      }
     }
+
+    if (exceeded) {
+      alert(
+        `This file is too long (over ${MAX_TRANSCRIPT_CHARS.toLocaleString()} characters). Please upload a shorter transcript or trim it before uploading.`
+      )
+      return
+    }
+
+    extractedText = textLines.join("\n")
+    applyTranscript(extractedText, file.name)
+  } catch (error) {
+    console.error("Error reading file:", error)
+    alert("Error reading file. Please try again.")
   }
+}
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -175,6 +198,7 @@ extractedText = textLines.join("\n")
   const clearFile = () => {
     setFileName(null)
     setTranscript("")
+    setTruncated(false)
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
@@ -209,7 +233,9 @@ extractedText = textLines.join("\n")
               </div>
               <div>
                 <p className="text-sm font-medium">{fileName}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">File loaded</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {truncated ? "File loaded — truncated to fit the 10,000 character limit" : "File loaded"}
+                </p>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); clearFile() }}
@@ -225,7 +251,7 @@ extractedText = textLines.join("\n")
               </div>
               <div>
                 <p className="text-sm font-medium">Drop a file or click to browse</p>
-                <p className="text-xs text-muted-foreground mt-0.5">.pdf .txt .md</p>
+                <p className="text-xs text-muted-foreground mt-0.5">.pdf .txt .md — up to 10,000 characters</p>
               </div>
             </>
           )}
@@ -242,18 +268,27 @@ extractedText = textLines.join("\n")
         <div className="relative">
           <Textarea
             placeholder="Paste your meeting transcript here..."
-            className="min-h-48 resize-none rounded-2xl border-border/60 bg-background/60 text-sm leading-7"
+            className={`min-h-48 resize-none rounded-2xl border-border/60 bg-background/60 text-sm leading-7 ${
+              overLimit ? "border-destructive/60 focus-visible:ring-destructive/40" : ""
+            }`}
             value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
+            onChange={(e) => {
+              setTruncated(false)
+              setTranscript(e.target.value)
+            }}
           />
           {transcript && (
             <button
-              onClick={() => { setTranscript(""); setFileName(null) }}
+              onClick={() => { setTranscript(""); setFileName(null); setTruncated(false) }}
               className="absolute right-3 top-3 rounded-lg p-1 hover:bg-muted transition-colors"
             >
               <X className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
           )}
+          <p className={`mt-1.5 text-right text-xs ${overLimit ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+            {transcript.length.toLocaleString()} / {MAX_TRANSCRIPT_CHARS.toLocaleString()}
+            {overLimit ? " — trim before analyzing" : ""}
+          </p>
         </div>
 
         {/* Actions */}
@@ -268,7 +303,7 @@ extractedText = textLines.join("\n")
             size="lg"
             className="rounded-2xl px-8 shadow-lg shadow-primary/20"
             onClick={handleAnalyze}
-            disabled={!transcript.trim()}
+            disabled={!transcript.trim() || overLimit}
           >
             Analyze with Qwen AI
           </Button>
