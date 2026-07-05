@@ -86,8 +86,8 @@ See [`public/architecture.svg`](public/architecture.svg) for the full diagram.
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/howelldevs/minutely
-cd minutely
+git clone https://github.com/howelldevs/Meetric
+cd Meetric
 pnpm install
 ```
 
