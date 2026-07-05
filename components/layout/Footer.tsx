@@ -18,21 +18,25 @@ export default function Footer() {
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-xs sm:text-sm text-muted-foreground">
-          <Link href="#" className="hover:text-foreground transition-colors">
+          <Link href="#features" className="hover:text-foreground transition-colors">
             Features
           </Link>
 
-          <Link href="#" className="hover:text-foreground transition-colors">
-            Pricing
-          </Link>
-
-          <Link href="#" className="hover:text-foreground transition-colors">
+          <a
+          href="https://github.com/howelldevs/Meetric"
+          target="_blank"
+          rel="noopener noreferrer" 
+          className="hover:text-foreground transition-colors"
+          >
             Docs
-          </Link>
+          </a>
 
-          <Link href="#" className="hover:text-foreground transition-colors">
+          <a
+          href="mailto:howelldevs@gmail.com"
+          className="hover:text-foreground transition-colors"
+          >
             Contact
-          </Link>
+          </a>
         </div>
       </div>
     </footer>

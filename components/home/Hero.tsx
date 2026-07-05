@@ -1,10 +1,9 @@
 import {
   ArrowRight,
   CheckCircle2,
-  Sparkles,
   Activity,
   BrainCircuit,
-  TimerReset,
+  Brain,
 } from "lucide-react"
 
 import { Button } from "../ui/button"
@@ -28,19 +27,19 @@ export default function Hero() {
       <div className="bg-grid absolute inset-0 -z-20 opacity-40" />
 
       {/* Noise Overlay */}
-      <div className="absolute inset-0 -z-10 opacity-[0.03] [background-image:radial-gradient(circle_at_center,white_1px,transparent_1px)] [background-size:18px_18px]" />
+      <div className="absolute inset-0 -z-10 opacity-[0.03] bg-[radial-gradient(circle_at_center,white_1px,transparent_1px)] bg-size-[18px_18px]" />
 
-      <div className="container py-28 md:py-36">
+      <div className="container py-2 sm:py-1 lg:py-3">
         <div className="mx-auto max-w-6xl text-center">
 
           {/* Badge */}
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-4 py-2 text-sm shadow-sm backdrop-blur-xl">
-            <Sparkles className="h-4 w-4 text-primary" />
+            <Brain  className="h-4 w-4 text-primary" />
             Autonomous AI meeting intelligence
           </div>
 
           {/* Heading */}
-          <h1 className="text-balance text-5xl font-semibold tracking-tight md:text-7xl lg:text-8xl">
+          <h1 className="text-balance text-5xl font-semibold tracking-tight md:text-7xl">
             Turn conversations into
 
             <span className="relative mt-2 block text-primary">
