@@ -4,14 +4,24 @@ import { Client } from "@notionhq/client"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { toMarkdown } from "@/lib/export"
 
+const CHUNK_SIZE = 1900
+const MAX_BLOCKS_PER_REQUEST = 100
+
+function toBlock(chunk: string) {
+  return {
+    object: "block" as const,
+    type: "paragraph" as const,
+    paragraph: {
+      rich_text: [{ type: "text" as const, text: { content: chunk } }],
+    },
+  }
+}
+
 export async function POST(req: NextRequest) {
   const { userId } = await auth()
 
   if (!userId) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    )
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const { analysis } = await req.json()
@@ -39,13 +49,11 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const notion = new Client({
-    auth: integration.access_token,
-  })
+  const notion = new Client({ auth: integration.access_token })
 
   const rootPageId = integration.raw?.rootPageId
 
-  if (!rootPageId) {
+  if (!rootPageId || typeof rootPageId !== "string") {
     return NextResponse.json(
       {
         error:
@@ -56,57 +64,44 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-  const markdown = toMarkdown(analysis)
+    const markdown = toMarkdown(analysis)
 
-  const children =
-    markdown.match(/[\s\S]{1,1900}/g)?.map((chunk) => ({
-      object: "block" as const,
-      type: "paragraph" as const,
-      paragraph: {
-        rich_text: [
-          {
-            type: "text" as const,
-            text: {
-              content: chunk,
-            },
-          },
-        ],
+    const allChunks =
+      markdown.match(new RegExp(`[\\s\\S]{1,${CHUNK_SIZE}}`, "g")) ?? []
+
+    const firstBatch = allChunks.slice(0, MAX_BLOCKS_PER_REQUEST).map(toBlock)
+    const remaining = allChunks.slice(MAX_BLOCKS_PER_REQUEST)
+
+    const page = await notion.pages.create({
+      parent: { type: "page_id", page_id: rootPageId },
+      properties: {
+        title: { title: [{ text: { content: analysis.title } }] },
       },
-    })) ?? []
+      children: firstBatch,
+    })
 
-  const page = await notion.pages.create({
-    parent: {
-      type: "page_id",
-      page_id: rootPageId,
-    },
-    properties: {
-      title: {
-        title: [
-          {
-            text: {
-              content: analysis.title,
-            },
-          },
-        ],
+    for (let i = 0; i < remaining.length; i += MAX_BLOCKS_PER_REQUEST) {
+      const batch = remaining
+        .slice(i, i + MAX_BLOCKS_PER_REQUEST)
+        .map(toBlock)
+      await notion.blocks.children.append({
+        block_id: page.id,
+        children: batch,
+      })
+    }
+
+    const pageUrl = `https://www.notion.so/${page.id.replace(/-/g, "")}`
+
+    return NextResponse.json({ ok: true, url: pageUrl })
+  } catch (err) {
+    console.error("Notion create page error:", err)
+
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error ? err.message : "Failed to create Notion page.",
       },
-    },
-    children,
-  })
-
-  const pageUrl = `https://www.notion.so/${page.id.replace(/-/g, "")}`
-
-  return NextResponse.json({
-    ok: true,
-    url: pageUrl,
-  })
-} catch (err) {
-  console.error("Notion create page error:", err)
-
-  return NextResponse.json(
-    {
-      error: err instanceof Error ? err.message : "Failed to create Notion page.",
-    },
-    { status: 500 }
-  )
-}
+      { status: 500 }
+    )
+  }
 }

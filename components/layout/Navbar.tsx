@@ -21,19 +21,19 @@ export default function Navbar() {
         <div className="absolute inset-0 -z-10 bg-linear-to-r from-primary/5 via-transparent to-primary/5" />
 
         {/* Logo */}
-        <Link href="/" className="group flex items-center gap-2 sm:gap-3 shrink-0">
+        <Link href="/" className="group flex items-center gap-2 shrink-0">
           <div className="relative flex items-center justify-center overflow-hidden rounded-xl">
             <div className="absolute inset-0 rounded-xl bg-primary/20 blur-xl transition-opacity duration-300 group-hover:opacity-100 opacity-0" />
             <Image
               src="/logo.png"
-              alt="Minutely Logo"
+              alt="Meetric Logo"
               width={120}
               height={120}
               className="relative h-8 sm:h-10 w-auto object-contain"
             />
           </div>
           <span className="logo hidden text-base sm:text-lg tracking-wide md:inline-block">
-            Minutely
+            Meetric
           </span>
         </Link>
 

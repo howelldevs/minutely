@@ -19,7 +19,7 @@ const features = [
     icon: BrainCircuit,
     title: "AI Meeting Understanding",
     description:
-      "Minutely understands context, decisions, and implicit commitments from long conversations.",
+      "Meetric understands context, decisions, and implicit commitments from long conversations.",
     className: "md:col-span-2 ",
   },
   {
@@ -206,22 +206,24 @@ export default function FeaturesSection() {
       <div className="mt-8 space-y-4">
 
     {/* Pipeline */}
-    <div className="overflow-hidden rounded-2xl border border-border/60 bg-background/40 p-4">
+    <div className="overflow-hidden rounded-2xl border border-border/60 bg-background/40 p-2">
 
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex flex-wrap items-center gap-3">
 
         {[
           "Transcript",
           "AI Analysis",
-          "Task Extraction",
           "Approval",
           "Execution",
+          "Task Extraction",
+          
+          
         ].map((item) => (
           <div
             key={item}
-            className="flex items-center gap-1 whitespace-nowrap rounded-full border border-border/60 bg-background/70 px-4 py-2 text-sm font-medium backdrop-blur"
+            className="flex items-center gap-1 whitespace-nowrap rounded-full border border-border px-4 py-2 text-sm font-medium backdrop-blur"
           >
-            <div className="whitespace-nowrap rounded-full border border-border/60 bg-background/70 px-4 py-2 text-sm font-medium backdrop-blur">
+            <div className="whitespace-nowrap  px-4 py-2 text-sm font-medium backdrop-blur">
               {item}
             </div>
 

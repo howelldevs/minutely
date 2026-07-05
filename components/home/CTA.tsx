@@ -86,7 +86,7 @@ export default function CTASection() {
 
               {/* Description */}
               <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-                Minutely automatically extracts tasks, summaries,
+                Meetric automatically extracts tasks, summaries,
                 participants, priorities, and decisions from meetings —
                 then transforms them into actionable workflows in seconds.
               </p>

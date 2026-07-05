@@ -9,7 +9,7 @@ export default function Footer() {
 
         <div>
           <h3 className="text-lg font-semibold">
-            Minutely
+           Meetric
           </h3>
 
           <p className="mt-1 text-xs sm:text-sm text-muted-foreground">

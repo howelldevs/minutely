@@ -9,17 +9,27 @@ import Link from "next/link"
 export default function HistoryList() {
   const { user, isLoaded } = useUser()
   const [entries, setEntries] = useState<HistoryEntry[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const loading = !isLoaded || (user?.id ? loadingHistory : false)
 
   useEffect(() => {
     if (!isLoaded) return
-    if (!user?.id) { setLoading(false); return }
+    if (!user?.id) return
 
-    fetch("/api/history")
-      .then((r) => r.json())
-      .then((d) => setEntries(d.entries ?? []))
-      .catch((err) => console.error("History load error:", err))
-      .finally(() => setLoading(false))
+    const fetchHistory = async () => {
+      setLoadingHistory(true)
+      try {
+        const response = await fetch("/api/history")
+        const data = await response.json()
+        setEntries(data.entries ?? [])
+      } catch (err) {
+        console.error("History load error:", err)
+      } finally {
+        setLoadingHistory(false)
+      }
+    }
+
+    fetchHistory()
   }, [isLoaded, user?.id])
 
   const handleDelete = async (id: string) => {

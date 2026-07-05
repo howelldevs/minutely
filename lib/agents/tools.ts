@@ -1,5 +1,5 @@
 /**
- * lib/agents/tools.ts — Minutely Unified Tool Layer
+ * lib/agents/tools.ts — Meetric Unified Tool Layer
  *
  * Tool executors for all agent actions. Each tool has:
  *   - A Qwen function-call definition (schema the LLM sees)
@@ -48,7 +48,7 @@ export interface AgentWithToolsResult {
 
 // ─── Qwen function definitions (what the LLM sees) ───────────────────────────
 
-export const MINUTELY_TOOLS = [
+export const METRIC_TOOLS = [
 
   {
     type: "function",
@@ -286,7 +286,7 @@ async function execPostSlack(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       channel: args.channel,
-      text: `${emoji} *Minutely Alert* → *${args.channel}*\n${args.message}`,
+      text: `${emoji} *Meetric Alert* → *${args.channel}*\n${args.message}`,
     }),
   })
 

@@ -157,7 +157,7 @@ function IntegrationsContent() {
         </Link>
         <h1 className="text-2xl font-bold mt-3">Integrations</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Connect your tools so Minutely can send follow-ups, book meetings, and sync notes automatically.
+          Connect your tools so Meetric can send follow-ups, book meetings, and sync notes automatically.
         </p>
       </div>
 

@@ -1,4 +1,4 @@
-const KEY = "minutely_device_id"
+const KEY = "meetric_device_id"
 
 export function getDeviceId(): string {
   if (typeof window === "undefined") return ""

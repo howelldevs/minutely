@@ -1,5 +1,5 @@
 /**
- * lib/agents/memory.ts — Cross-session meeting memory for Minutely
+ * lib/agents/memory.ts — Cross-session meeting memory for Meetric
  *
  * Fetches the user's recent meeting history and compresses it into a
  * structured context block that is prepended to the Analysis agent's

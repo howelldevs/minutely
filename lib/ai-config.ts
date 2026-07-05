@@ -1,5 +1,5 @@
 /**
- * AI Provider Configuration — Minutely
+ * AI Provider Configuration — Meetric
  *
  * All model strings live here.
  * Tuesday swap: change ACTIVE_TIER from "free" to "paid" — that's it.

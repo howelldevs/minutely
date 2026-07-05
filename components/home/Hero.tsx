@@ -53,7 +53,7 @@ export default function Hero() {
 
           {/* Description */}
           <p className="mx-auto mt-8 max-w-3xl text-lg leading-8 text-muted-foreground md:text-xl">
-            Minutely uses AI agents to extract summaries, action items,
+            Meetric uses AI agents to extract summaries, action items,
             decisions, deadlines, and ownership from meetings in seconds.
           </p>
 
@@ -64,7 +64,7 @@ export default function Hero() {
                 size="lg"
                 className="h-12 rounded-2xl px-8 text-base shadow-lg shadow-primary/20"
               >
-                Try Minutely
+                Try Meetric
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
@@ -123,26 +123,7 @@ export default function Hero() {
               </div>
             </div>
 
-            {/* Floating Metric Card */}
-            <div className="absolute -right-8 bottom-16 hidden lg:block">
-              <div className="rounded-3xl border border-border/60 bg-background/80 p-5 shadow-2xl backdrop-blur-xl">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
-                    <TimerReset className="h-5 w-5 text-primary" />
-                  </div>
-
-                  <div className="text-left">
-                    <p className="text-2xl font-semibold">
-                      10s
-                    </p>
-
-                    <p className="text-sm text-muted-foreground">
-                      Processing
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            
 
             {/* Floating Activity */}
             <div className="absolute right-12 top-0 hidden xl:block">

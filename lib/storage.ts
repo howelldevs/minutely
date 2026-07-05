@@ -1,5 +1,5 @@
 /**
- * storage.ts — all Supabase DB operations for Minutely
+ * storage.ts — all Supabase DB operations for Meetric
  *
  * Uses the ADMIN client (service role) for all writes so Clerk user IDs
  * are accepted without needing a Supabase JWT. RLS is enforced manually
